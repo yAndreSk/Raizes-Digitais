@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Raízes Digitais - Monitoramento de Árvores em Maringá</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-success">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="#">
+            <i class="fas fa-tree me-2"></i>Raízes Digitais - Maringá
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav">
+                <li class="nav-item"><a class="nav-link" href="#" onclick="showSection('monitoramento')"><i class="fas fa-exclamation-triangle me-1"></i> Reportar Problema</a></li>
+                <li class="nav-item"><a class="nav-link" href="#" onclick="showSection('mapa')"><i class="fas fa-map-marked-alt me-1"></i> Mapa Interativo</a></li>
+                <li class="nav-item"><a class="nav-link" href="#" onclick="showSection('podas')"><i class="fas fa-calendar-alt me-1"></i> Gestão de Podas</a></li>
+                <li class="nav-item"><a class="nav-link" href="#" onclick="showSection('qualidade')"><i class="fas fa-chart-line me-1"></i> Qualidade Ambiental</a></li>
+                <li class="nav-item"><a class="nav-link" href="#" onclick="showSection('sobre')"><i class="fas fa-info-circle me-1"></i> Sobre o Projeto</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container mt-4">
+    <div id="monitoramento" class="content-section">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-exclamation-triangle me-2"></i>Reportar Problema com Árvores</h2>
+            <span class="badge bg-success">...</span>
+        </div>
+        <p class="text-muted mb-4">Ajude a manter Maringá segura reportando problemas com árvores como risco de queda, galhos caídos ou necessidade de poda.</p>
+        
+        <div class="card mb-4 border-success">
+            <div class="card-header bg-success text-white">
+                <i class="fas fa-edit me-1"></i> Formulário de Relatório
+            </div>
+            <div class="card-body">
+                <form id="formRelatorio">
+                    <div class="mb-3">
+                        <label for="tipoProblema" class="form-label">Tipo de Problema</label>
+                        <select class="form-select" id="tipoProblema" required>
+                            <option value="">Selecione...</option>
+                            <option value="risco_queda">Risco de queda</option>
+                            <option value="galhos_caidos">Galhos caídos</option>
+                            <option value="necessidade_poda">Necessidade de poda</option>
+                            <option value="arvore_doente">Árvore doente</option>
+                            <option value="outro">Outro</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="localizacao" class="form-label">Localização</label>
+                        <input type="text" id="localizacao" class="form-control" placeholder="Digite o endereço ou ponto de referência" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="foto" class="form-label">Foto do problema (opcional)</label>
+                        <input type="file" id="foto" class="form-control" accept="image/*">
+                    </div>
+                    <div class="mb-3">
+                        <label for="descricao" class="form-label">Descrição detalhada</label>
+                        <textarea id="descricao" class="form-control" rows="3" placeholder="Descreva o problema com detalhes..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-paper-plane me-1"></i> Enviar Relatório
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <div id="mensagem" class="alert alert-success" style="display:none;"></div>
+    </div>
+
+    <div id="mapa" class="content-section" style="display:none;">
+        <h2><i class="fas fa-map-marked-alt me-2"></i>Mapa Interativo</h2>
+        <p class="text-muted mb-4">Visualize as ocorrências reportadas e as árvores monitoradas em Maringá. Clique nos marcadores para mais informações.</p>
+        
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <input type="text" id="pesquisaMapa" class="form-control" placeholder="Pesquisar local...">
+                    <button class="btn btn-success" onclick="pesquisarNoMapa()">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="filtroRisco" checked>
+                    <label class="form-check-label" for="filtroRisco">Mostrar áreas de risco</label>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="filtroPodas" checked>
+                    <label class="form-check-label" for="filtroPodas">Mostrar podas agendadas</label>
+                </div>
+            </div>
+        </div>
+        
+        <div id="map" style="height: 500px; border-radius: 8px; overflow: hidden;"></div>
+        
+        <div class="mt-3">
+            <div class="legend bg-white p-3 rounded shadow-sm">
+                <div class="mb-2"><span class="legend-icon risk me-2"></span> </div>
+                <div class="mb-2"><span class="legend-icon scheduled me-2"></span> </div>
+                <div><span class="legend-icon healthy me-2"></span> </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="podas" class="content-section" style="display:none;">
+        <h2><i class="fas fa-calendar-alt me-2"></i>Gestão de Podas</h2>
+        <p class="text-muted mb-4">Consulte o cronograma de podas programadas e solicite novas podas quando necessário.</p>
+        
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card mb-4 border-success">
+                    <div class="card-header bg-success text-white">
+                        <i class="fas fa-clipboard-list me-1"></i> Cronograma de Podas
+                    </div>
+                    <ul id="listaPodas" class="list-group list-group-flush"></ul>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card border-success">
+                    <div class="card-header bg-success text-white">
+                        <i class="fas fa-plus-circle me-1"></i> Solicitar Poda
+                    </div>
+                    <div class="card-body">
+                        <form id="formPoda">
+                            <div class="mb-3">
+                                <label for="localPoda" class="form-label">Localização</label>
+                                <input type="text" id="localPoda" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="motivoPoda" class="form-label">Motivo</label>
+                                <textarea id="motivoPoda" class="form-control" rows="3" required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="fas fa-paper-plane me-1"></i> Solicitar
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="qualidade" class="content-section" style="display:none;">
+        <h2><i class="fas fa-chart-line me-2"></i>Indicadores de Qualidade Ambiental</h2>
+        <p class="text-muted mb-4">Veja como as árvores de Maringá impactam na qualidade do ar e temperatura da cidade.</p>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-4 border-success">
+                    <div class="card-header bg-success text-white">
+                        <i class="fas fa-wind me-1"></i> Qualidade do Ar
+                    </div>
+                    <div class="card-body">
+                        <canvas id="graficoQualidadeAr"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card mb-4 border-success">
+                    <div class="card-header bg-success text-white">
+                        <i class="fas fa-thermometer-half me-1"></i> Temperatura Média
+                    </div>
+                    <div class="card-body">
+                        <canvas id="graficoTemperatura"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card border-success">
+            <div class="card-header bg-success text-white">
+                <i class="fas fa-leaf me-1"></i> Benefícios Ambientais
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-4 mb-3">
+                        <div class="stat-circle bg-success text-white mx-auto">
+                            <span id="co2Reduzido">0</span> ton
+                        </div>
+                        <p class="mt-2 fw-bold">CO² reduzido</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="stat-circle bg-success text-white mx-auto">
+                            <span id="arvoresMonitoradas">0</span>
+                        </div>
+                        <p class="mt-2 fw-bold">Árvores monitoradas</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="stat-circle bg-success text-white mx-auto">
+                            <span id="problemasResolvidos">0</span>
+                        </div>
+                        <p class="mt-2 fw-bold">Problemas resolvidos</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="sobre" class="content-section" style="display:none;">
+        <h2><i class="fas fa-info-circle me-2"></i>Sobre o Projeto Raízes Digitais</h2>
+        
+        <div class="card mb-4 border-success">
+            <div class="card-body">
+                <h3 class="text-success">Objetivo</h3>
+                <p>O projeto Raízes Digitais visa monitorar as áreas verdes de Maringá, abordando tanto a manutenção preventiva quanto a identificação de riscos, como a possibilidade de queda das árvores. Por meio desta plataforma interativa, os moradores podem alertar os órgãos responsáveis e comunicar outros cidadãos sobre eventuais problemas ambientais, promovendo a segurança e o bem-estar de toda a comunidade.</p>
+                
+                <h3 class="text-success mt-4">Como Funciona</h3>
+                <p>Nosso sistema foi dividido em três módulos principais:</p>
+                <ol>
+                    <li><strong>Mapa interativo</strong> - onde os usuários podem registrar ocorrências e visualizar alertas</li>
+                    <li><strong>Sistema de cronograma</strong> - para a gestão de podas, com notificações para moradores e responsáveis</li>
+                    <li><strong>Indicadores ambientais</strong> - com gráficos informativos sobre qualidade do ar e temperatura</li>
+                </ol>
+                
+                <h3 class="text-success mt-4">Equipe</h3>
+                <div class="row">
+                    <div class="col-md-4 mb-4">
+                        <div class="team-card text-center p-3 border rounded">
+                            <div class="team-icon bg-success text-white rounded-circle mx-auto mb-3">
+                                <i class="fas fa-user fa-2x"></i>
+                            </div>
+                            <h4>André Domingues</h4>
+                            <p class="text-muted">...</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-4">
+                        <div class="team-card text-center p-3 border rounded">
+                            <div class="team-icon bg-success text-white rounded-circle mx-auto mb-3">
+                                <i class="fas fa-user fa-2x"></i>
+                            </div>
+                            <h4>Lívia Boneti</h4>
+                            <p class="text-muted">...</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-4">
+                        <div class="team-card text-center p-3 border rounded">
+                            <div class="team-icon bg-success text-white rounded-circle mx-auto mb-3">
+                                <i class="fas fa-user fa-2x"></i>
+                            </div>
+                            <h4>Maria Duarte</h4>
+                            <p class="text-muted">...</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <h3 class="text-success mt-4">Universidade</h3>
+                <p>Unicesumar - Maringá/PR</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer class="bg-success text-white text-center p-4 mt-4">
+    <div class="container">
+        <p class="mb-2">© 2025 Raízes Digitais - Monitoramento de Árvores Inteligente em Maringá</p>
+        <p class="mb-0">Projeto acadêmico desenvolvido para promover a segurança e qualidade ambiental</p>
+    </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-geosearch@3.1.0/dist/geosearch.umd.js"></script>
+<script src="script.js"></script>
+
+</body>
+</html>
