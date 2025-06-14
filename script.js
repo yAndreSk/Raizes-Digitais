@@ -1,44 +1,55 @@
-
-
-// Mostrar seção selecionada
+// Função para mostrar seções
 function showSection(sectionId) {
+    // Esconder todas as seções
     document.querySelectorAll('.content-section').forEach(section => {
         section.style.display = 'none';
     });
-    document.getElementById(sectionId).style.display = 'block';
     
-    // Inicializar map se for a seção do mapa
-    if (sectionId === 'mapa' && typeof map === 'undefined') {
-        initMap();
+    // Mostrar a seção selecionada
+    const sectionToShow = document.getElementById(sectionId);
+    if (sectionToShow) {
+        sectionToShow.style.display = 'block';
+        
+        // Inicializar componentes específicos
+        if (sectionId === 'mapa' && typeof map === 'undefined') {
+            initMap();
+        }
+        if (sectionId === 'monitoramento') {
+            atualizarEstatisticas();
+        }
+        if (sectionId === 'podas') {
+            carregarPodas();
+        }
+        if (sectionId === 'qualidade') {
+            inicializarGraficos();
+        }
     }
+    
+    // Atualizar navegação ativa
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.classList.remove('active');
+    });
+    document.querySelector(`a[onclick="showSection('${sectionId}');"]`).classList.add('active');
     
     // Rolar para o topo
     window.scrollTo({top: 0, behavior: 'smooth'});
 }
 
-// Inicializar com a seção de monitoramento visível
-document.addEventListener("DOMContentLoaded", () => {
+// Inicializar a página
+document.addEventListener("DOMContentLoaded", function() {
     showSection('monitoramento');
     
-    // Atualizar estatísticas
-    atualizarEstatisticas();
-    
-    // Carregar lista de podas
-    carregarPodas();
-    
-    // Inicializar gráficos
-    inicializarGraficos();
+    // Evento do formulário de relatório
+    document.getElementById("formRelatorio").addEventListener("submit", function(e) {
+        e.preventDefault();
+        enviarRelatorio();
+    });
 });
 
-// Formulário de relatório
-document.getElementById("formRelatorio").addEventListener("submit", function(e) {
-    e.preventDefault();
-    enviarRelatorio();
-});
-
+// Funções do formulário de relatório
 function enviarRelatorio() {
-    let localizacao = document.getElementById("localizacao").value;
-    let tipoProblema = document.getElementById("tipoProblema").value;
+    const localizacao = document.getElementById("localizacao").value;
+    const tipoProblema = document.getElementById("tipoProblema").value;
     
     if (!tipoProblema) {
         mostrarMensagem("Por favor, selecione o tipo de problema.", "danger");
@@ -50,9 +61,9 @@ function enviarRelatorio() {
         return;
     }
     
-    // Simular envio para o servidor
+    // Simular envio
     setTimeout(() => {
-        mostrarMensagem("Relatório enviado com sucesso! Obrigado por contribuir com a segurança de Maringá.", "success");
+        mostrarMensagem("Relatório enviado com sucesso! Obrigado por contribuir.", "success");
         document.getElementById("formRelatorio").reset();
         atualizarEstatisticas();
     }, 1000);
@@ -69,25 +80,40 @@ function mostrarMensagem(texto, tipo) {
     }, 5000);
 }
 
-// Mapa Interativo com Leaflet
+// Mapa Interativo
 let map;
 let markers = [];
+let riskLayer;
+let scheduledLayer;
+let healthyLayer;
 
 function initMap() {
     map = L.map('map').setView([-23.425, -51.937], 14);
     
-    // Adicionar tile layer do OpenStreetMap
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 18,
     }).addTo(map);
     
-    // Adicionar alguns marcadores de exemplo
-    adicionarMarcador(-23.427, -51.937, "Risco de queda", "red");
-    adicionarMarcador(-23.423, -51.935, "Poda agendada", "yellow");
-    adicionarMarcador(-23.420, -51.940, "Árvore saudável", "green");
+    // Camadas
+    riskLayer = L.layerGroup().addTo(map);
+    scheduledLayer = L.layerGroup().addTo(map);
+    healthyLayer = L.layerGroup().addTo(map);
     
-    // Configurar pesquisa
+    // Marcadores de exemplo
+    adicionarMarcador(-23.427, -51.937, "Risco de queda", "red", "Árvore inclinada na Rua João Paulino Vieira", "Alta", "10/04/2025");
+    adicionarMarcador(-23.423, -51.935, "Poda agendada", "yellow", "Poda programada para Avenida Colombo", "Média", "15/04/2025");
+    adicionarMarcador(-23.420, -51.940, "Árvore saudável", "green", "Árvore monitorada na Rua Joubert de Carvalho", "Nenhum", "-");
+    
+    // Controle de camadas
+    const overlayMaps = {
+        "Áreas de Risco": riskLayer,
+        "Podas Agendadas": scheduledLayer,
+        "Árvores Saudáveis": healthyLayer
+    };
+    L.control.layers(null, overlayMaps, {collapsed: false}).addTo(map);
+    
+    // Controle de pesquisa
     const searchControl = new GeoSearch.GeoSearchControl({
         provider: new GeoSearch.OpenStreetMapProvider(),
         style: 'bar',
@@ -100,15 +126,109 @@ function initMap() {
             draggable: false,
         },
     });
-    
     map.addControl(searchControl);
+}
+
+function adicionarMarcador(lat, lng, tipo, cor, descricao, severidade, dataResolucao) {
+    const icon = L.divIcon({
+        className: 'custom-marker',
+        html: `<div style="background-color: ${cor}; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white"></div>`,
+        iconSize: [24, 24]
+    });
+    
+    const marker = L.marker([lat, lng], {icon: icon});
+    
+    if (cor === 'red' || cor === 'orange') {
+        marker.addTo(riskLayer);
+    } else if (cor === 'yellow') {
+        marker.addTo(scheduledLayer);
+    } else {
+        marker.addTo(healthyLayer);
+    }
+    
+    const popupContent = `
+        <div style="min-width: 200px">
+            <h5 style="margin: 0 0 10px 0; color: ${cor}">${tipo}</h5>
+            <p><strong>Local:</strong> ${descricao}</p>
+            <p><strong>Severidade:</strong> <span style="color: ${cor}">${severidade}</span></p>
+            <p><strong>Resolução:</strong> ${dataResolucao}</p>
+            <button onclick="zoomToMarker(${lat}, ${lng})" 
+                    style="background-color: #2e7d32; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-top: 10px; width: 100%">
+                Ampliar
+            </button>
+        </div>
+    `;
+    
+    marker.bindPopup(popupContent);
+    markers.push(marker);
+}
+
+function zoomToMarker(lat, lng) {
+    map.setView([lat, lng], 18);
+}
+
+function toggleLayer(layerType) {
+    switch(layerType) {
+        case 'risk':
+            if (map.hasLayer(riskLayer)) {
+                map.removeLayer(riskLayer);
+            } else {
+                map.addLayer(riskLayer);
+            }
+            break;
+        case 'scheduled':
+            if (map.hasLayer(scheduledLayer)) {
+                map.removeLayer(scheduledLayer);
+            } else {
+                map.addLayer(scheduledLayer);
+            }
+            break;
+        case 'healthy':
+            if (map.hasLayer(healthyLayer)) {
+                map.removeLayer(healthyLayer);
+            } else {
+                map.addLayer(healthyLayer);
+            }
+            break;
+    }
+}
+
+function filtrarZonasRisco() {
+    const tipoFiltro = document.getElementById("filtroTipoRisco").value;
+    
+    markers.forEach(marker => marker.closePopup());
+    
+    markers.forEach(marker => {
+        const popupContent = marker.getPopup().getContent();
+        const markerType = popupContent.includes("Risco de queda") ? "queda" : 
+                          popupContent.includes("Árvore doente") ? "doente" : 
+                          "outro";
+        
+        if (tipoFiltro === "todos") {
+            marker.addTo(map);
+        } else if (tipoFiltro === "queda" && markerType === "queda") {
+            marker.addTo(map);
+            marker.openPopup();
+        } else if (tipoFiltro === "doente" && markerType === "doente") {
+            marker.addTo(map);
+            marker.openPopup();
+        } else {
+            map.removeLayer(marker);
+        }
+    });
+    
+    const visibleMarkers = markers.filter(marker => map.hasLayer(marker));
+    if (visibleMarkers.length > 0) {
+        const group = new L.featureGroup(visibleMarkers);
+        map.fitBounds(group.getBounds().pad(0.2));
+    }
 }
 
 function pesquisarNoMapa() {
     const query = document.getElementById("pesquisaMapa").value;
     if (!query) return;
     
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`)
         .then(response => response.json())
         .then(data => {
             if (data.length > 0) {
@@ -119,7 +239,7 @@ function pesquisarNoMapa() {
                 L.marker([lat, lon], {
                     icon: new L.Icon.Default()
                 }).addTo(map)
-                .bindPopup(query)
+                .bindPopup(data[0].display_name)
                 .openPopup();
             } else {
                 mostrarMensagem("Localização não encontrada. Tente um endereço mais específico.", "danger");
@@ -131,37 +251,23 @@ function pesquisarNoMapa() {
         });
 }
 
-function adicionarMarcador(lat, lng, titulo, cor) {
-    const marker = L.circleMarker([lat, lng], {
-        radius: 8,
-        fillColor: cor,
-        color: "#fff",
-        weight: 1,
-        opacity: 1,
-        fillOpacity: 0.8
-    }).addTo(map);
-    
-    marker.bindPopup(titulo);
-    markers.push(marker);
-}
-
 // Gestão de Podas
 function carregarPodas() {
     const cronogramaPodas = [
-        { bairro: "Zona 7", data: "10/04/2025", status: "agendada" },
-        { bairro: "Centro", data: "15/04/2025", status: "agendada" },
-        { bairro: "Jardim Alvorada", data: "20/04/2025", status: "agendada" },
-        { bairro: "Zona 5", data: "05/04/2025", status: "concluída" }
+        { bairro: "Zona 7", data: "10/07/2025", status: "agendada" },
+        { bairro: "Centro", data: "15/07/2025", status: "agendada" },
+        { bairro: "Jardim Alvorada", data: "20/07/2025", status: "agendada" },
+        { bairro: "Zona 5", data: "05/06/2025", status: "concluída" }
     ];
     
     const listaPodas = document.getElementById("listaPodas");
     listaPodas.innerHTML = '';
     
     cronogramaPodas.forEach(poda => {
-        let item = document.createElement("li");
+        const item = document.createElement("li");
         item.className = "list-group-item d-flex justify-content-between align-items-center";
         
-        let statusBadge = poda.status === "agendada" ? 
+        const statusBadge = poda.status === "agendada" ? 
             '<span class="badge bg-warning text-dark">Agendada</span>' : 
             '<span class="badge bg-success">Concluída</span>';
         
@@ -174,7 +280,6 @@ function carregarPodas() {
         listaPodas.appendChild(item);
     });
     
-    // Formulário de solicitação de poda
     document.getElementById("formPoda").addEventListener("submit", function(e) {
         e.preventDefault();
         
@@ -186,19 +291,17 @@ function carregarPodas() {
             return;
         }
         
-        // Simular envio
         setTimeout(() => {
-            mostrarMensagem("Solicitação de poda enviada com sucesso! Você receberá um retorno em breve.", "success");
+            mostrarMensagem("Solicitação de poda enviada com sucesso!", "success");
             document.getElementById("formPoda").reset();
-            carregarPodas();
         }, 1000);
     });
 }
 
-// Gráficos de Qualidade Ambiental
+// Gráficos
 function inicializarGraficos() {
     // Gráfico de Qualidade do Ar
-    let ctxAr = document.getElementById("graficoQualidadeAr").getContext("2d");
+    const ctxAr = document.getElementById("graficoQualidadeAr").getContext("2d");
     new Chart(ctxAr, {
         type: "bar",
         data: {
@@ -207,7 +310,6 @@ function inicializarGraficos() {
                 label: "Qualidade do Ar (%)",
                 data: [85, 90, 80, 88, 82],
                 backgroundColor: ["#388e3c", "#43a047", "#4caf50", "#66bb6a", "#81c784"],
-                borderColor: ["#2e7d32", "#388e3c", "#43a047", "#4caf50", "#66bb6a"],
                 borderWidth: 1
             }]
         },
@@ -223,7 +325,7 @@ function inicializarGraficos() {
     });
     
     // Gráfico de Temperatura
-    let ctxTemp = document.getElementById("graficoTemperatura").getContext("2d");
+    const ctxTemp = document.getElementById("graficoTemperatura").getContext("2d");
     new Chart(ctxTemp, {
         type: "line",
         data: {
@@ -243,21 +345,19 @@ function inicializarGraficos() {
     });
 }
 
-// Atualizar estatísticas
+// Estatísticas
 function atualizarEstatisticas() {
-    // Simular dados (em um sistema real, isso viria de uma API)
     document.getElementById("co2Reduzido").textContent = "124";
     document.getElementById("arvoresMonitoradas").textContent = "1.857";
     document.getElementById("problemasResolvidos").textContent = "326";
     
-    // Animar os números
     animateValue("co2Reduzido", 0, 124, 1000);
     animateValue("arvoresMonitoradas", 0, 1857, 1000);
     animateValue("problemasResolvidos", 0, 326, 1000);
 }
 
 function animateValue(id, start, end, duration) {
-    let obj = document.getElementById(id);
+    const obj = document.getElementById(id);
     let startTimestamp = null;
     const step = (timestamp) => {
         if (!startTimestamp) startTimestamp = timestamp;
